@@ -18,8 +18,11 @@ class MailgunProvider:
                 "to": [user["email"]],
                 "subject": "Test Email",
                 "text": f"Hello {user['name']}, this is a test email."
-            }
+            },
+            timeout=10
         )
 
         if response.status_code != 200:
-            raise Exception(f"Mailgun failed: {response.text}")
+            raise Exception(
+                f"Mailgun failed with status {response.status_code}: {response.text}"
+            )

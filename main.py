@@ -1,124 +1,64 @@
 from utils import load_emails
 from providers.mock_provider import MockProvider
 from providers.mailgun_provider import MailgunProvider
-from concurrent.futures import ThreadPoolExecutor
-from db import init_db, save_result, clear_table
-import time
+from email_sender import run_sequential, run_threaded
+from db import init_db, clear_table
 
 
-def send_email_task(user, provider, max_retries=3):
-    attempts = 0
-    last_error = ""
-
-    while attempts < max_retries:
-        try:
-            provider.send(user)
-            return {
-                "email": user["email"],
-                "status": "sent",
-                "attempts": attempts + 1
-            }
-        except Exception as error:
-            last_error = str(error)
-            attempts += 1
-
-    return {
-        "email": user["email"],
-        "status": "failed",
-        "attempts": max_retries,
-        "error": last_error
-    }
-
-
-#Sequential version (no threading)
-def run_sequential(users, provider):
-    results = []
-    start_time = time.time()
-
-    for user in users:
-        result = send_email_task(user, provider, 3)
-        results.append(result)
-        save_result(result)
-
-    end_time = time.time()
-    return results, end_time - start_time
-
-
-# Threaded version
-def run_threaded(users, provider):
-    results = []
-    futures = []
-
-    start_time = time.time()
-
-    with ThreadPoolExecutor(max_workers=10) as executor:
-        for user in users:
-            futures.append(
-                executor.submit(send_email_task, user, provider, 3)
-            )
-
-    for future in futures:
-        result = future.result()
-        results.append(result)
-        save_result(result)
-
-    end_time = time.time()
-    return results, end_time - start_time
+# Configuration
+MODE = "mailgun"   # "mock" or "mailgun"
+MAILGUN_TEST_FILE = "mailgun_test.csv"
+MAILGUN_EMAIL_LIMIT = 5
 
 
 def main():
     init_db()
 
-    users = load_emails("data.csv")
-
-    #SWITCH PROVIDER HERE
-    use_mock = False   #change to False for Mailgun
-
-    if use_mock:
+    # Provider selection
+    if MODE == "mock":
         provider = MockProvider()
-    else:
+        users = load_emails("data.csv")
+    elif MODE == "mailgun":
         provider = MailgunProvider()
-        users = [
-            {"name": "Fixpoint", "email": "fixpoint.noreply@gmail.com"},
-            {"name": "Hari Dev", "email": "harikrishnan.mb.dev@gmail.com"},
-            {"name": "Hari", "email": "harikrishnanmb36@gmail.com"}
-        ]  #IMPORTANT: limit real emails
+        users = load_emails(MAILGUN_TEST_FILE)[:MAILGUN_EMAIL_LIMIT]
+    else:
+        raise ValueError("Invalid MODE. Use 'mock' or 'mailgun'.")
 
-    #Run Sequential (only for mock)
-    if use_mock:
+    # Sequential run (only for mock mode)
+    if MODE == "mock":
         print("Running SEQUENTIAL...\n")
         clear_table()
         _, seq_time = run_sequential(users, provider)
     else:
-        seq_time = 0  # not needed for Mailgun
+        seq_time = None
 
-    #Run Threaded
+    # Threaded run
     print("Running THREADED...\n")
     clear_table()
     results, thread_time = run_threaded(users, provider)
 
-    #Summary
+    # Summary
     total = len(results)
     sent = sum(1 for r in results if r["status"] == "sent")
     failed = sum(1 for r in results if r["status"] == "failed")
 
-    #Performance output
     print("\n===== PERFORMANCE COMPARISON =====")
-    if use_mock:
+    if seq_time is not None:
         print(f"Sequential Time: {seq_time:.2f} sec")
     print(f"Threaded Time:   {thread_time:.2f} sec")
 
-    #Final Summary
     print("\n===== SUMMARY =====")
     print(f"Total Emails: {total}")
     print(f"Sent: {sent}")
     print(f"Failed: {failed}")
+    print(f"Time Taken: {thread_time:.2f} sec")
 
-    if failed:
+    errors = [r for r in results if r["status"] == "failed"]
+
+    if errors:
         print("\n===== ERRORS =====")
-        for result in results:
-            if result["status"] == "failed":
-                print(f"{result['email']}: {result.get('error', 'Unknown error')}")
+        for e in errors[:10]:
+            print(f"{e['email']}: {e.get('error', 'Unknown error')}")
 
 
 if __name__ == "__main__":
