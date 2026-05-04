@@ -6,26 +6,44 @@ from db import init_db, clear_table
 
 
 # Configuration
-MODE = "mailgun"   # "mock" or "mailgun"
+DEFAULT_MODE = "mock"   # "mock" or "mailgun"
 MAILGUN_TEST_FILE = "mailgun_test.csv"
 MAILGUN_EMAIL_LIMIT = 5
 
 
+def select_mode():
+    print("Select email provider:")
+    print("1. Mock")
+    print("2. Mailgun")
+
+    choice = input(f"Enter choice [1/2] (default: {DEFAULT_MODE}): ").strip().lower()
+
+    if choice in ("", DEFAULT_MODE):
+        return DEFAULT_MODE
+    if choice in ("1", "mock"):
+        return "mock"
+    if choice in ("2", "mailgun"):
+        return "mailgun"
+
+    raise ValueError("Invalid choice. Use 1 for mock or 2 for mailgun.")
+
+
 def main():
     init_db()
+    mode = select_mode()
 
     # Provider selection
-    if MODE == "mock":
+    if mode == "mock":
         provider = MockProvider()
         users = load_emails("data.csv")
-    elif MODE == "mailgun":
+    elif mode == "mailgun":
         provider = MailgunProvider()
         users = load_emails(MAILGUN_TEST_FILE)[:MAILGUN_EMAIL_LIMIT]
     else:
-        raise ValueError("Invalid MODE. Use 'mock' or 'mailgun'.")
+        raise ValueError("Invalid mode. Use 'mock' or 'mailgun'.")
 
     # Sequential run (only for mock mode)
-    if MODE == "mock":
+    if mode == "mock":
         print("Running SEQUENTIAL...\n")
         clear_table()
         _, seq_time = run_sequential(users, provider)
