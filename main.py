@@ -7,8 +7,9 @@ from db import init_db, clear_table
 
 
 
+
 # Configuration
-DEFAULT_MODE = "mock"   # "mock" or "mailgun"
+DEFAULT_MODE = "mailgun"   # "mock" or "mailgun"
 MAILGUN_TEST_FILE = "mailgun_test.csv"
 MAILGUN_EMAIL_LIMIT = 5
 
