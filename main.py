@@ -5,6 +5,8 @@ from email_sender import run_sequential, run_threaded
 from db import init_db, clear_table
 
 
+
+
 # Configuration
 DEFAULT_MODE = "mock"   # "mock" or "mailgun"
 MAILGUN_TEST_FILE = "mailgun_test.csv"
